@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shape Classifier - ONNX Transfer Learning serving</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="background-decor">
+        <div class="circle-decor c1"></div>
+        <div class="circle-decor c2"></div>
+        <div class="circle-decor c3"></div>
+    </div>
+    
+    <div class="app-container">
+        <!-- Header -->
+        <header class="glass-card header-card">
+            <div class="header-logo-section">
+                <h1>Shape Classifier</h1>
+                <p class="subtitle">ONNX Transfer Learning Serving API</p>
+            </div>
+            <div class="status-indicator">
+                <span class="status-dot status-offline" id="status-dot"></span>
+                <span class="status-text" id="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="main-grid">
+            <!-- Left Side: Upload & Samples -->
+            <section class="grid-col upload-section">
+                <div class="glass-card control-card">
+                    <h2 class="section-title">Upload Image</h2>
+                    <p class="section-desc">Drag and drop an image of a shape, or select a file to classify.</p>
+                    
+                    <!-- Drag & Drop Zone -->
+                    <div class="drop-zone" id="drop-zone">
+                        <input type="file" id="file-input" accept="image/*" class="file-input">
+                        <div class="drop-zone-content">
+                            <div class="upload-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                                </svg>
+                            </div>
+                            <span class="drop-zone-prompt">Drag & Drop Image Here</span>
+                            <span class="drop-zone-separator">or</span>
+                            <button class="btn btn-primary" id="browse-btn">Browse Files</button>
+                        </div>
+                        <div class="preview-container" id="preview-container" style="display: none;">
+                            <img src="" alt="Selected Shape" class="image-preview" id="image-preview">
+                            <button class="remove-preview-btn" id="remove-preview-btn" title="Remove image">&times;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sample Cards -->
+                <div class="glass-card samples-card">
+                    <h2 class="section-title">Try Quick Samples</h2>
+                    <p class="section-desc">Click on any shape below to load it from the validation set.</p>
+                    <div class="samples-grid" id="samples-grid">
+                        <div class="sample-item-skeleton"></div>
+                        <div class="sample-item-skeleton"></div>
+                        <div class="sample-item-skeleton"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Side: Classification Results -->
+            <section class="grid-col results-section">
+                <div class="glass-card results-card">
+                    <h2 class="section-title">Classification Output</h2>
+                    
+                    <!-- Empty State -->
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <polyline points="21 15 16 10 5 21" />
+                            </svg>
+                        </div>
+                        <h3>Awaiting Inference</h3>
+                        <p>Generate predictions by uploading a custom image or selecting one of our validation set samples.</p>
+                    </div>
+
+                    <!-- Loader State -->
+                    <div class="loader-state" id="loader-state" style="display: none;">
+                        <div class="spinner"></div>
+                        <h3>Running ONNX Model...</h3>
+                        <p>Performing lightweight inference on FastAPI CPU</p>
+                    </div>
+
+                    <!-- Prediction Results State -->
+                    <div class="prediction-state" id="prediction-state" style="display: none;">
+                        <div class="predicted-header">
+                            <div class="predicted-title-wrapper">
+                                <span class="badge">Prediction</span>
+                                <h2 class="predicted-class" id="predicted-class">Circle</h2>
+                            </div>
+                            <div class="predicted-score-wrapper">
+                                <span class="badge">Confidence</span>
+                                <h2 class="predicted-confidence" id="predicted-confidence">99.5%</h2>
+                            </div>
+                        </div>
+
+                        <!-- Progress Gauges -->
+                        <div class="probability-bars-container">
+                            <h3 class="subsection-title">Probability Distribution</h3>
+                            <div id="prob-bars-list">
+                                <!-- Bars will be inserted dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Latency Statistics -->
+                        <div class="stats-container">
+                            <h3 class="subsection-title">Serving performance</h3>
+                            <div class="stats-grid">
+                                <div class="stat-box">
+                                    <span class="stat-label">Inference Latency</span>
+                                    <span class="stat-value" id="stat-latency">1.42 ms</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-label">Model Serving</span>
+                                    <span class="stat-value">ONNX Runtime</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-label">Device Target</span>
+                                    <span class="stat-value">CPU</span>
+                                </div>
+                                <div class="stat-box">
+                                    <span class="stat-label">Fine-Tuned model</span>
+                                    <span class="stat-value">ResNet-18</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <p>Built with PyTorch, ONNX, and FastAPI. Aligned with Supervised ML & Neural Networks.</p>
+        </footer>
+    </div>
+
+    <!-- Frontend Script -->
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const previewContainer = document.getElementById('preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const removePreviewBtn = document.getElementById('remove-preview-btn');
+        const dropZoneContent = dropZone.querySelector('.drop-zone-content');
+        const samplesGrid = document.getElementById('samples-grid');
+        
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        
+        const emptyState = document.getElementById('empty-state');
+        const loaderState = document.getElementById('loader-state');
+        const predictionState = document.getElementById('prediction-state');
+        
+        const predictedClassText = document.getElementById('predicted-class');
+        const predictedConfidenceText = document.getElementById('predicted-confidence');
+        const probBarsList = document.getElementById('prob-bars-list');
+        const statLatency = document.getElementById('stat-latency');
+
+        // Check backend health on page load
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    statusDot.className = 'status-dot status-online';
+                    statusText.textContent = 'API serving online';
+                } else {
+                    statusDot.className = 'status-dot status-warning';
+                    statusText.textContent = 'Model Loading...';
+                }
+            } catch (err) {
+                statusDot.className = 'status-dot status-offline';
+                statusText.textContent = 'API Connection Offline';
+            }
+        }
+
+        // Fetch sample validation shapes
+        async function loadSamples() {
+            try {
+                const response = await fetch('/api/samples');
+                const samples = await response.json();
+                
+                samplesGrid.innerHTML = '';
+                
+                Object.entries(samples).forEach(([shape, path]) => {
+                    const card = document.createElement('div');
+                    card.className = 'sample-item glass-card';
+                    card.innerHTML = `
+                        <div class="sample-image-wrapper">
+                            <img src="${path}" alt="Sample ${shape}">
+                        </div>
+                        <span class="sample-label">${shape.toUpperCase()}</span>
+                    `;
+                    card.addEventListener('click', () => {
+                        // Load image into preview and predict
+                        imagePreview.src = path;
+                        previewContainer.style.display = 'block';
+                        dropZoneContent.style.display = 'none';
+                        
+                        // Perform inference
+                        runInferenceFromUrl(path);
+                    });
+                    samplesGrid.appendChild(card);
+                });
+            } catch (err) {
+                console.error("Error loading samples:", err);
+                samplesGrid.innerHTML = `
+                    <div class="error-msg">
+                        Failed to load validation samples. Make sure the dataset is generated and backend is running.
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize drag & drop zone
+        browseBtn.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            if (fileInput.files.length) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drop-zone-over');
+        });
+
+        ['dragleave', 'dragend'].forEach(type => {
+            dropZone.addEventListener(type, () => {
+                dropZone.classList.remove('drop-zone-over');
+            });
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drop-zone-over');
+            
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        removePreviewBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetUploadZone();
+        });
+
+        function resetUploadZone() {
+            fileInput.value = '';
+            imagePreview.src = '';
+            previewContainer.style.display = 'none';
+            dropZoneContent.style.display = 'flex';
+            
+            predictionState.style.display = 'none';
+            loaderState.style.display = 'none';
+            emptyState.style.display = 'flex';
+        }
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please upload an image file.');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                imagePreview.src = reader.result;
+                previewContainer.style.display = 'block';
+                dropZoneContent.style.display = 'none';
+            };
+            
+            runInference(file);
+        }
+
+        // Inference helper with custom file upload
+        async function runInference(file) {
+            showState('loading');
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errDetail = await response.json();
+                    throw new Error(errDetail.detail || "Server error running model");
+                }
+                
+                const result = await response.json();
+                displayResults(result);
+            } catch (err) {
+                showState('empty');
+                alert(`Error: ${err.message}`);
+                resetUploadZone();
+            }
+        }
+
+        // Inference helper when clicking on preloaded validation samples
+        async function runInferenceFromUrl(url) {
+            showState('loading');
+            try {
+                // Fetch the image as a blob
+                const imageResponse = await fetch(url);
+                const blob = await imageResponse.blob();
+                const file = new File([blob], "sample.jpg", { type: "image/jpeg" });
+                
+                await runInference(file);
+            } catch (err) {
+                console.error("Error loading sample blob:", err);
+                showState('empty');
+            }
+        }
+
+        function showState(state) {
+            emptyState.style.display = state === 'empty' ? 'flex' : 'none';
+            loaderState.style.display = state === 'loading' ? 'flex' : 'none';
+            predictionState.style.display = state === 'results' ? 'flex' : 'none';
+        }
+
+        function displayResults(data) {
+            showState('results');
+            
+            // Set values
+            predictedClassText.textContent = data.predicted_class.toUpperCase();
+            predictedConfidenceText.textContent = `${(data.confidence * 100).toFixed(1)}%`;
+            statLatency.textContent = `${data.latency_ms} ms`;
+            
+            // Build progress bars
+            probBarsList.innerHTML = '';
+            Object.entries(data.probabilities)
+                .sort((a, b) => b[1] - a[1]) // Sort highest to lowest
+                .forEach(([shape, prob]) => {
+                    const valPct = (prob * 100).toFixed(1);
+                    const isMax = shape === data.predicted_class;
+                    
+                    const barItem = document.createElement('div');
+                    barItem.className = `prob-bar-item ${isMax ? 'active-shape' : ''}`;
+                    barItem.innerHTML = `
+                        <div class="prob-labels">
+                            <span class="shape-name">${shape.toUpperCase()}</span>
+                            <span class="shape-val">${valPct}%</span>
+                        </div>
+                        <div class="bar-bg">
+                            <div class="bar-fill" style="width: ${valPct}%"></div>
+                        </div>
+                    `;
+                    probBarsList.appendChild(barItem);
+                });
+        }
+
+        // Initialize App
+        async function init() {
+            await checkHealth();
+            // Load samples after check
+            await loadSamples();
+            
+            // Set periodic health check
+            setInterval(checkHealth, 10000);
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+torch
+torchvision
+onnx
+onnxruntime
+onnxscript
+fastapi
+uvicorn
+pillow
+pydantic
+jinja2
+python-multipart
+pytest
+httpx
